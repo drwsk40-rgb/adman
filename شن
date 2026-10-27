@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ar-EG" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#070b14">
+<title>Plus | إدارة المحتوى</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:dark;--bg:#070b14;--surface:#0b1120;--panel:#101829;--panel2:#16203a;--line:rgba(148,163,184,.14);--txt:#eef2f8;--muted:#8a9ab3;--accent:#ff5a3c;--green:#2dd4a0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:14px Cairo,system-ui,sans-serif}
+button,input,textarea,select{font:inherit;color:inherit}
+.wrap{max-width:1000px;margin:auto;padding:24px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;margin:18px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.field label{display:block;color:var(--muted);font-size:12px;font-weight:700;margin-bottom:6px}
+.field input,.field textarea,.field select{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px}
+.field textarea{min-height:100px}
+.btn{border:0;border-radius:10px;background:linear-gradient(135deg,#ff5a3c,#ff8a4c);padding:10px 18px;font-weight:800;cursor:pointer}
+.btn.gray{background:var(--panel2);border:1px solid var(--line)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.muted{color:var(--muted)}
+.hidden{display:none!important}
+.item{padding:14px;border:1px solid var(--line);border-radius:12px;margin-top:12px}
+.item h3{margin:0 0 6px}
+.msg{padding:12px;border-radius:10px;background:#16203a;margin:12px 0}
+.danger{color:#ff8181}
+.top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+a{color:#8db9ff}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="top">
+    <div>
+      <h1>Plus · إدارة المحتوى</h1>
+      <p class="muted">أضف المحاضرات والملفات لتظهر مباشرة في صفحة الطالب.</p>
+    </div>
+    <a href="index.html">فتح صفحة الطالب</a>
+  </header>
+
+  <section id="login" class="box">
+    <h2>دخول الإدارة</h2>
+    <div class="grid">
+      <div class="field">
+        <label for="username">اسم المستخدم</label>
+        <input id="username" autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="password">كلمة المرور</label>
+        <input id="password" type="password" autocomplete="current-password">
+      </div>
+    </div>
+    <p id="loginMsg" class="msg hidden"></p>
+    <button id="loginBtn" class="btn">دخول</button>
+  </section>
+
+  <section id="panel" class="hidden">
+    <div class="box">
+      <div class="top">
+        <h2>إضافة محتوى</h2>
+        <button class="btn gray" id="logout">تسجيل الخروج</button>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label for="title">عنوان المحتوى</label>
+          <input id="title" maxlength="140" required>
+        </div>
+        <div class="field">
+          <label for="category">المادة / التصنيف</label>
+          <input id="category" maxlength="80" placeholder="مثال: الرياضيات">
+        </div>
+        <div class="field">
+          <label for="kind">نوع المحتوى</label>
+          <select id="kind">
+            <option value="video">فيديو / محاضرة</option>
+            <option value="file">ملف</option>
+            <option value="link">رابط</option>
+            <option value="text">نص أو إعلان</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="url">رابط المحتوى (اختياري للنص)</label>
+          <input id="url" type="url" dir="ltr" placeholder="https://...">
+        </div>
+      </div>
+      <div class="field" style="margin-top:14px">
+        <label for="description">وصف أو نص</label>
+        <textarea id="description" maxlength="3000"></textarea>
+      </div>
+      <p id="saveMsg" class="msg hidden"></p>
+      <button id="save" class="btn">نشر المحتوى</button>
+    </div>
+
+    <div class="box">
+      <h2>أكواد دخول الطلاب</h2>
+      <p class="muted">إنشاء كود من 9 أرقام لتسجيل دخول الطالب.</p>
+      <div class="row">
+        <button class="btn" id="newCode">إنشاء كود طالب</button>
+        <strong id="newCodeResult" dir="ltr"></strong>
+      </div>
+      <p id="codeMsg" class="msg hidden"></p>
+    </div>
+
+    <div class="box">
+      <h2>المحتوى المنشور</h2>
+      <div id="list" class="muted">جاري التحميل…</div>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
+} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  query,
+  orderBy,
+  serverTimestamp,
+  setDoc,
+  getDoc
+} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: 'AIzaSyDhjhevtzRqW9USY3uVRUPpSWTes3c2oDs',
+  authDomain: 'drosak-6736a.firebaseapp.com',
+  projectId: 'drosak-6736a',
+  storageBucket: 'drosak-6736a.firebasestorage.app',
+  messagingSenderId: '646736939233',
+  appId: '1:646736939233:web:a0ba4ede96be1e597a8fa0',
+  measurementId: 'G-721P81KYG9'
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const $ = id => document.getElementById(id);
+const esc = s => String(s || '').replace(/[&<>"']/g, c => ({
+  '&':'&amp;',
+  '<':'&lt;',
+  '>':'&gt;',
+  '"':'&quot;',
+  "'":'&#39;'
+}[c]));
+
+function showPanel(ok) {
+  $('login').classList.toggle('hidden', !ok);
+  $('panel').classList.toggle('hidden', !ok);
+}
+
+function message(el, text, bad = false) {
+  el.textContent = text;
+  el.classList.remove('hidden');
+  el.classList.toggle('danger', bad);
+}
+
+$('loginBtn').onclick = async () => {
+  if ($('username').value.trim() !== 'plus') {
+    message($('loginMsg'), 'اسم المستخدم هو plus.', true);
+    return;
+  }
+
+  try {
+    $('loginBtn').disabled = true;
+    await signInWithEmailAndPassword(
+      auth,
+      'plus@drosak-6736a.firebaseapp.com',
+      $('password').value
+    );
+    message($('loginMsg'), 'تم تسجيل الدخول.');
+  } catch (e) {
+    message($('loginMsg'), 'تعذر تسجيل الدخول إلى Firebase Auth: ' + e.code, true);
+  } finally {
+    $('loginBtn').disabled = false;
+  }
+};
+
+$('password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('loginBtn').click();
+});
+
+$('logout').onclick = () => signOut(auth);
+
+onAuthStateChanged(auth, user => {
+  const isAdmin = !!user && user.email === 'plus@drosak-6736a.firebaseapp.com';
+  showPanel(isAdmin);
+  if (isAdmin) start();
+});
+
+let stop = null;
+
+function start() {
+  if (stop) return;
+
+  const q = query(collection(db, 'publicContent'), orderBy('createdAt', 'desc'));
+
+  stop = onSnapshot(q, snap => {
+    const rows = snap.docs.map(d => ({id:d.id, ...d.data()}));
+
+    $('list').innerHTML = rows.length
+      ? rows.map(x => `
+        <article class="item">
+          <div class="top">
+            <h3>${esc(x.title)}</h3>
+            <button class="btn gray" data-del="${esc(x.id)}">حذف</button>
+          </div>
+          <div class="muted">
+            ${esc(x.category || 'عام')} ·
+            ${esc(({video:'محاضرة',file:'ملف',link:'رابط',text:'نص'})[x.kind] || 'محتوى')}
+          </div>
+          ${x.description ? `<p>${esc(x.description)}</p>` : ''}
+          ${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">فتح الرابط</a>` : ''}
+        </article>
+      `).join('')
+      : 'لا يوجد محتوى منشور بعد.';
+
+    document.querySelectorAll('[data-del]').forEach(b => {
+      b.onclick = async () => {
+        if (confirm('حذف هذا المحتوى؟')) {
+          try {
+            await deleteDoc(doc(db, 'publicContent', b.dataset.del));
+          } catch (e) {
+            alert('تعذر الحذف: ' + e.message);
+          }
+        }
+      };
+    });
+  }, e => {
+    $('list').textContent = 'تعذر تحميل المحتوى. راجع إعدادات Firestore وقواعد الوصول.';
+    console.error(e);
+  });
+}
+
+$('save').onclick = async () => {
+  const title = $('title').value.trim();
+  const url = $('url').value.trim();
+
+  if (!title) {
+    message($('saveMsg'), 'اكتب عنوان المحتوى.', true);
+    return;
+  }
+
+  if (url && !/^https:\/\//i.test(url)) {
+    message($('saveMsg'), 'الرابط لازم يبدأ بـ https://', true);
+    return;
+  }
+
+  try {
+    $('save').disabled = true;
+
+    await addDoc(collection(db, 'publicContent'), {
+      title,
+      category: $('category').value.trim(),
+      kind: $('kind').value,
+      url,
+      description: $('description').value.trim(),
+      createdAt: serverTimestamp()
+    });
+
+    ['title', 'category', 'url', 'description'].forEach(id => $(id).value = '');
+    message($('saveMsg'), 'تم النشر، وسيظهر للطلاب بعد لحظات.');
+  } catch (e) {
+    message($('saveMsg'), 'فشل النشر. تحقق من قواعد Firestore: ' + e.message, true);
+  } finally {
+    $('save').disabled = false;
+  }
+};
+
+$('newCode').onclick = async () => {
+  const m = $('codeMsg');
+  const out = $('newCodeResult');
+
+  try {
+    let code;
+    let snap;
+
+    do {
+      code = String(Math.floor(100000000 + Math.random() * 900000000));
+      snap = await getDoc(doc(db, 'studentCodes', code));
+    } while (snap.exists());
+
+    await setDoc(doc(db, 'studentCodes', code), {
+      active: true,
+      createdAt: serverTimestamp()
+    });
+
+    out.textContent = code;
+    message(m, 'تم إنشاء الكود. أرسله للطالب.');
+  } catch (e) {
+    message(m, 'تعذر إنشاء الكود. تحقق من قواعد الكتابة في Firestore: ' + e.message, true);
+  }
+};
+</script>
+</body>
+</html>
